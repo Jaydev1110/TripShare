@@ -70,8 +70,7 @@ async def login(credentials: UserLogin):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/me", response_model=UserResponse)
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user_dep(credentials: HTTPAuthorizationCredentials = Depends(security)) -> UserResponse:
     token = credentials.credentials
     try:
         user_response = supabase.auth.get_user(token)
@@ -88,3 +87,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         )
     except Exception as e:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user(user: UserResponse = Depends(get_current_user_dep)):
+    return user
