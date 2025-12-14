@@ -2,9 +2,9 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, s
 from app.database.supabase_client import supabase
 from app.models.photo import UploadResponse, SignedURLResponse, SignedURLRequest, PhotoResponse
 from app.models.auth import UserResponse
-# from app.routes.auth import get_current_user_dep
-from app.utils.auth_stub import get_mock_current_user as get_current_user_dep
+from app.dependencies import get_current_user_dep
 from app.utils.storage_utils import build_storage_path, generate_thumbnail
+from app.utils.time_utils import is_group_expired
 from app.utils.validation import validate_file_size, validate_mime_type
 from uuid import UUID
 from datetime import datetime
@@ -24,6 +24,11 @@ async def upload_photo(
     member_check = supabase.table("group_members").select("approved").eq("group_id", str(group_id)).eq("user_id", str(current_user.id)).single().execute()
     if not member_check.data or not member_check.data["approved"]:
         raise HTTPException(status_code=403, detail="Not authorized to upload to this group")
+
+    # Check for expiry
+    group_response = supabase.table("groups").select("expires_at").eq("id", str(group_id)).single().execute()
+    if group_response.data and is_group_expired(group_response.data):
+        raise HTTPException(status_code=403, detail="Group has expired, cannot upload")
 
     # Validate file
     file_content = await file.read()
@@ -134,9 +139,18 @@ async def get_signed_urls(
         memberships = supabase.table("group_members").select("group_id").eq("user_id", str(current_user.id)).eq("approved", True).in_("group_id", group_ids).execute()
         allowed_group_ids = [m["group_id"] for m in memberships.data]
         
+        # Check expiry for these groups
+        groups_response = supabase.table("groups").select("id, expires_at").in_("id", allowed_group_ids).execute()
+        
+        # Filter out expired groups
+        valid_group_ids = []
+        for g in groups_response.data:
+            if not is_group_expired(g):
+                valid_group_ids.append(g["id"])
+        
         urls = []
         for p in photos_response.data:
-            if p["group_id"] in allowed_group_ids:
+            if p["group_id"] in valid_group_ids:
                 # Generate signed URL
                 signed_url = supabase.storage.from_(SUPABASE_BUCKET_NAME).create_signed_url(
                     path=p["storage_path"], 

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: tripshare-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://your-frontend.vercel.app,http://localhost:5500
+      - key: MOCK_AUTH
+        value: "true"

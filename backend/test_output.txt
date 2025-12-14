@@ -1,0 +1,49 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\Projects\TripShare\backend
+plugins: anyio-3.7.1
+collected 1 item
+
+test_phase4.py .                                                         [100%]
+
+============================== warnings summary ===============================
+venv\Lib\site-packages\starlette\formparsers.py:10
+  D:\Projects\TripShare\backend\venv\Lib\site-packages\starlette\formparsers.py:10: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+venv\Lib\site-packages\gotrue\types.py:679: 19 warnings
+  D:\Projects\TripShare\backend\venv\Lib\site-packages\gotrue\types.py:679: PydanticDeprecatedSince20: The `update_forward_refs` method is deprecated; use `model_rebuild` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    model.update_forward_refs()
+
+test_phase4.py::test_group_expiry_lifecycle
+  D:\Projects\TripShare\backend\app\routes\groups.py:25: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    expires_at = datetime.utcnow() + timedelta(days=group_data.expires_in_days)
+
+test_phase4.py::test_group_expiry_lifecycle
+  D:\Projects\TripShare\backend\test_phase4.py:36: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    past_time = (datetime.utcnow() - timedelta(hours=1)).isoformat()
+
+test_phase4.py::test_group_expiry_lifecycle
+test_phase4.py::test_group_expiry_lifecycle
+test_phase4.py::test_group_expiry_lifecycle
+  D:\Projects\TripShare\backend\app\utils\time_utils.py:34: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+test_phase4.py::test_group_expiry_lifecycle
+  D:\Projects\TripShare\backend\app\routes\groups.py:212: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+test_phase4.py::test_group_expiry_lifecycle
+  D:\Projects\TripShare\backend\test_phase4.py:77: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    assert new_expiry_dt > datetime.utcnow()
+
+test_phase4.py::test_group_expiry_lifecycle
+  D:\Projects\TripShare\backend\app\utils\storage_utils.py:11: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp = int(datetime.utcnow().timestamp())
+
+test_phase4.py::test_group_expiry_lifecycle
+  D:\Projects\TripShare\backend\app\routes\photos.py:58: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "uploaded_at": datetime.utcnow().isoformat()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 1 passed, 29 warnings in 4.71s ========================

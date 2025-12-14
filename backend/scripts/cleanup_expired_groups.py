@@ -38,12 +38,28 @@ def cleanup_expired_groups():
             except Exception as e:
                 print(f"Error deleting photos for group {group_id}: {e}")
 
-            # Delete group (cascading should handle members/photos DB rows)
+            # Delete photos from DB explicitly (in case cascade is missing)
+            supabase.table("photos").delete().eq("group_id", group_id).execute()
+            
+            # Delete members
+            supabase.table("group_members").delete().eq("group_id", group_id).execute()
+            
+            # Delete warnings (ignore if table missing)
+            try:
+                supabase.table("group_warnings").delete().eq("group_id", group_id).execute()
+            except Exception:
+                pass
+
+            # Delete group
             supabase.table("groups").delete().eq("id", group_id).execute()
+            
+            print(f"Cleanup finished for group {group_id}")
             
         print("Cleanup completed")
     except Exception as e:
         print(f"Error during cleanup: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     cleanup_expired_groups()

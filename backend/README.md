@@ -75,3 +75,32 @@ backend/
 └── README.md               # This file
 ```
 
+## Group Lifecycle & Expiry (Phase 4)
+
+TripShare implements time-limited groups. Groups have an `expires_at` timestamp.
+
+### Automatic Expiry
+- Groups expire automatically after the configured duration (default 7 days).
+- **Expired Groups**:
+    - Cannot accept new members (`POST /groups/join` returns 410).
+    - Cannot accept photo uploads (`POST /photos/upload` returns 403).
+    - Cannot generate signed URLs for downloads.
+
+### Extension
+- **Owners** can extend a group using:
+  `POST /groups/{group_id}/extend`
+  Body: `{"extend_days": 3}`
+
+### Automation Scripts (`backend/scripts/`)
+These scripts should be scheduled (e.g., via cron or GitHub Actions).
+
+1.  **`send_expiry_warnings.py`**
+    - Checks for groups expiring in the next 24 hours.
+    - Adds an entry to `group_warnings` table (setup via `supabase/migrations/20251214_group_warnings.sql`).
+    - *Note: Does not send actual emails yet (Backend logic only).*
+
+2.  **`cleanup_expired_groups.py`**
+    - Permanently deletes groups that have passed their `expires_at` time.
+    - Deletes all associated photos from Supabase Storage.
+    - Deletes database records (Group, Members, Photos, Warnings).
+    - **Danger:** This is destructive and irreversible.

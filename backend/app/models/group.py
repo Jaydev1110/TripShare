@@ -31,3 +31,6 @@ class GroupDetailsResponse(BaseModel):
     owner_user_id: UUID
     title: str
     expires_at: Optional[datetime]
+
+class ExtendGroupRequest(BaseModel):
+    extend_days: int

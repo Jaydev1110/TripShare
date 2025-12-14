@@ -2,17 +2,43 @@ from fastapi import APIRouter, HTTPException, Depends, Response
 from app.database.supabase_client import supabase
 from app.models.group import (
     CreateGroupRequest, CreateGroupResponse, JoinGroupRequest,
-    ApproveMemberRequest, GroupMemberResponse, GroupDetailsResponse
+    ApproveMemberRequest, GroupMemberResponse, GroupDetailsResponse,
+    ExtendGroupRequest
 )
 from app.models.auth import UserResponse
-# from app.routes.auth import get_current_user_dep
-from app.utils.auth_stub import get_mock_current_user as get_current_user_dep
+from app.dependencies import get_current_user_dep
 from app.utils.group_utils import generate_group_code, can_manage_group
+from app.utils.time_utils import is_group_expired
 from datetime import datetime, timedelta
 import qrcode
 from io import BytesIO
 
 router = APIRouter(prefix="/groups", tags=["Groups"])
+
+@router.get("", response_model=list[GroupDetailsResponse])
+async def list_my_groups(
+    current_user: UserResponse = Depends(get_current_user_dep)
+):
+    try:
+        # Get groups where user is a member
+        # 1. Get group_ids from group_members
+        memberships = supabase.table("group_members").select("group_id").eq("user_id", str(current_user.id)).execute()
+        
+        if not memberships.data:
+            return []
+            
+        group_ids = [m["group_id"] for m in memberships.data]
+        
+        # 2. Fetch group details
+        groups_response = supabase.table("groups").select("*").in_("id", group_ids).execute()
+        
+        groups = []
+        for g in groups_response.data:
+            groups.append(GroupDetailsResponse(**g))
+            
+        return groups
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("", response_model=CreateGroupResponse)
 async def create_group(
@@ -73,11 +99,16 @@ async def join_group(
 ):
     try:
         # Find group by code
-        group_response = supabase.table("groups").select("id").eq("code", join_request.code).single().execute()
+        group_response = supabase.table("groups").select("*").eq("code", join_request.code).single().execute()
         if not group_response.data:
             raise HTTPException(status_code=404, detail="Invalid group code")
             
         group_id = group_response.data["id"]
+        group_data = group_response.data
+
+        # Check for expiry
+        if is_group_expired(group_data):
+            raise HTTPException(status_code=410, detail="Group has expired")
         
         # Check if already a member
         member_check = supabase.table("group_members").select("*").eq("group_id", group_id).eq("user_id", str(current_user.id)).execute()
@@ -92,6 +123,8 @@ async def join_group(
         }).execute()
         
         return {"message": "Join request sent", "status": "pending"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -164,6 +197,54 @@ async def delete_group(
         # Otherwise need manual deletion
         supabase.table("groups").delete().eq("id", group_id).execute()
         return {"message": "Group deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{group_id}/extend")
+async def extend_group(
+    group_id: str,
+    request: ExtendGroupRequest,
+    current_user: UserResponse = Depends(get_current_user_dep)
+):
+    if not can_manage_group(current_user.id, group_id):
+        raise HTTPException(status_code=403, detail="Only owner can extend group")
+        
+    try:
+        # Get current expiry
+        group_response = supabase.table("groups").select("expires_at").eq("id", group_id).single().execute()
+        if not group_response.data:
+            raise HTTPException(status_code=404, detail="Group not found")
+            
+        current_expires_at_str = group_response.data["expires_at"]
+        # Parse existing expiry
+        # Note: simplistic parsing, assuming Supabase DB format is ISO
+        current_expires_at = datetime.fromisoformat(current_expires_at_str.replace('Z', '+00:00'))
+        
+        # If already expired, can we extend? 
+        # Requirement: "Cannot extend a permanently deleted group"
+        # If it's in DB, it's not permanently deleted yet.
+        # So yes, owner can extend to resurrect it before cleanup runs.
+        
+        # Calculate new expiry
+        # If completely expired, should we extend from NOW or from old expiry?
+        # Usually from NOW if it was expired, or add to existing if not.
+        # Let's simple add to existing for now, or ensure it's at least NOW + days.
+        
+        # Logic: New Expiry = max(Now, OldExpiry) + Days
+        now = datetime.utcnow()
+        if current_expires_at.tzinfo:
+            now = now.replace(tzinfo=current_expires_at.tzinfo) # Match TZ
+            
+        base_time = max(now, current_expires_at)
+        new_expires_at = base_time + timedelta(days=request.extend_days)
+        
+        # Update
+        supabase.table("groups").update({"expires_at": new_expires_at.isoformat()}).eq("id", group_id).execute()
+        
+        return {"message": "Group extended", "new_expires_at": new_expires_at.isoformat()}
+        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

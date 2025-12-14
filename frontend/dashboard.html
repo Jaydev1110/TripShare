@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TripShare - Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="config.js"></script>
+</head>
+
+<body>
+    <div class="dashboard-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2 class="mb-4" style="color: var(--primary);">TripShare</h2>
+            <div class="user-info mb-4">
+                <p style="font-weight: 600;" id="userName">User</p>
+                <small style="color: var(--text-secondary);">Logged in</small>
+            </div>
+
+            <nav>
+                <div class="nav-item active" onclick="showSection('groups')">My Groups</div>
+                <!-- <div class="nav-item">Settings</div> -->
+            </nav>
+
+            <div style="margin-top: auto;">
+                <button class="secondary" onclick="window.app.logout()">Log Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Groups Section -->
+            <section id="groupsSection">
+                <div class="flex justify-between items-center mb-4">
+                    <h1>My Groups</h1>
+                    <div class="flex gap-2">
+                        <input type="text" id="joinCode" placeholder="Enter Code" style="width: auto;">
+                        <button onclick="joinGroup()" style="width: auto;">Join</button>
+                        <button onclick="showCreateModal()" class="secondary" style="width: auto;">+ Create</button>
+                    </div>
+                </div>
+
+                <div id="groupsList" class="group-grid">
+                    <!-- Groups injected here -->
+                    <p>Loading groups...</p>
+                </div>
+            </section>
+
+            <!-- Single Group Details Section (Hidden by default) -->
+            <section id="groupDetailSection" class="hidden">
+                <button onclick="showSection('groups')" class="secondary mb-4">← Back to Groups</button>
+
+                <div class="flex justify-between items-center">
+                    <h1 id="groupTitle">Group Title</h1>
+                    <div id="groupActions" class="flex gap-2">
+                        <!-- Owner actions injected here -->
+                    </div>
+                </div>
+
+                <div class="flex gap-2 items-center mb-4">
+                    <span id="groupBadge" class="badge">Active</span>
+                    <span style="color: var(--text-secondary);" id="groupExpiry">Expires in X days</span>
+                    <small>Code: <strong id="groupCode">ABCD</strong></small>
+                </div>
+
+                <!-- Upload Area -->
+                <div class="card mb-4" id="uploadCard">
+                    <h3>Upload Photos</h3>
+                    <div class="flex gap-2 mt-4">
+                        <input type="file" id="photoInput" multiple accept="image/*">
+                        <button onclick="uploadPhotos()" style="width: auto;">Upload</button>
+                    </div>
+                    <div id="uploadProgress" class="mt-4 hidden">Uploading...</div>
+                </div>
+
+                <!-- Photos Grid -->
+                <div class="flex justify-between items-center">
+                    <h3>Photos</h3>
+                    <button onclick="downloadSelected()" class="secondary" style="width: auto;">Download
+                        Selected</button>
+                </div>
+                <div id="photosGrid" class="photo-grid">
+                    <!-- Photos injected here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Create Group Modal (Basic prompt for now or overlay) -->
+    <!-- Implementing as simple prompt for speed, can be modal later -->
+
+    <script src="js/app.js"></script>
+    <script>
+        // --- Dashboard Logic ---
+
+        // Init
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) window.location.href = 'index.html';
+        document.getElementById('userName').textContent = user.username || user.email;
+
+        function showSection(id) {
+            if (id === 'groups') {
+                document.getElementById('groupsSection').classList.remove('hidden');
+                document.getElementById('groupDetailSection').classList.add('hidden');
+                loadGroups();
+            } else {
+                // Detail
+                document.getElementById('groupsSection').classList.add('hidden');
+                document.getElementById('groupDetailSection').classList.remove('hidden');
+            }
+        }
+
+        async function loadGroups() {
+            try {
+                const groups = await window.app.api.getGroups();
+                const container = document.getElementById('groupsList');
+
+                if (groups.length === 0) {
+                    container.innerHTML = '<p>No groups found. Create or join one!</p>';
+                    return;
+                }
+
+                container.innerHTML = groups.map(g => {
+                    // Calculate relative time
+                    const expiryDate = new Date(g.expires_at); // UTC
+                    const now = new Date();
+                    const diffTime = expiryDate - now;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const isExpired = diffDays <= 0;
+
+                    return `
+                        <div class="group-card ${isExpired ? 'expired' : ''}" onclick="openGroup('${g.id}')" style="cursor: pointer;">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3>${g.title}</h3>
+                                <span class="badge ${isExpired ? 'expired' : 'active'}">
+                                    ${isExpired ? 'Expired' : 'Active'}
+                                </span>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                                ${isExpired ? 'Expired on ' + expiryDate.toLocaleDateString() : 'Expires in ' + diffDays + ' days'}
+                            </p>
+                            <small class="mt-4 block">Owner: ${g.owner_user_id === user.id ? 'You' : 'Others'}</small>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error(err);
+                alert('Failed to load groups');
+            }
+        }
+
+        async function joinGroup() {
+            const code = document.getElementById('joinCode').value;
+            if (!code) return;
+            try {
+                await window.app.api.joinGroup(code);
+                alert('Joined!');
+                loadGroups();
+            } catch (err) {
+                alert(err.detail || 'Failed to join');
+            }
+        }
+
+        async function showCreateModal() {
+            const title = prompt("Group Title:");
+            if (!title) return;
+            const days = prompt("Expires in (days):", "7");
+            if (!days) return;
+
+            try {
+                await window.app.api.createGroup(title, days);
+                loadGroups();
+            } catch (err) {
+                alert(err.detail || 'Failed to create');
+            }
+        }
+
+        let currentGroupId = null;
+        let isGroupOwner = false;
+        let isGroupExpired = false;
+
+        async function openGroup(id) {
+            currentGroupId = id;
+            showSection('detail');
+
+            try {
+                const group = await window.app.api.getGroupDetails(id);
+                document.getElementById('groupTitle').textContent = group.title;
+                document.getElementById('groupCode').textContent = group.code;
+
+                isGroupOwner = group.owner_user_id === user.id;
+
+                const expiryDate = new Date(group.expires_at);
+                const now = new Date();
+                isGroupExpired = now > expiryDate;
+
+                document.getElementById('groupBadge').className = `badge ${isGroupExpired ? 'expired' : 'active'}`;
+                document.getElementById('groupBadge').textContent = isGroupExpired ? 'Expired' : 'Active';
+                document.getElementById('groupExpiry').textContent = isGroupExpired ?
+                    `Expired ${expiryDate.toLocaleDateString()}` :
+                    `Expires ${expiryDate.toLocaleDateString()}`;
+
+                // Actions
+                const actionsDiv = document.getElementById('groupActions');
+                actionsDiv.innerHTML = '';
+                if (isGroupOwner) {
+                    actionsDiv.innerHTML += `<button class="secondary" onclick="extendGroup()" style="width: auto;">Extend</button>`;
+                }
+
+                // Interaction state
+                if (isGroupExpired) {
+                    document.getElementById('uploadCard').classList.add('hidden');
+                } else {
+                    document.getElementById('uploadCard').classList.remove('hidden');
+                }
+
+                loadPhotos(id);
+
+            } catch (err) {
+                alert('Error loading details');
+            }
+        }
+
+        async function extendGroup() {
+            const days = prompt("Add days:", "3");
+            if (!days) return;
+            try {
+                await window.app.api.extendGroup(currentGroupId, days);
+                alert('Extended!');
+                openGroup(currentGroupId); // reload
+            } catch (err) {
+                alert(err.detail || 'Failed to extend');
+            }
+        }
+
+        async function loadPhotos(groupId) {
+            try {
+                const photos = await window.app.api.getPhotos(groupId);
+                const grid = document.getElementById('photosGrid');
+                grid.innerHTML = photos.map(p => {
+                    // We don't have thumbnails yet for real without signed URLs, 
+                    // OR we need to fetch signed URL for each to display it?
+                    // Wait, `list_group_photos` currently returns metadata only.
+                    // IMPORTANT: To display images, we need signed URLs.
+                    // The Plan mentioned `GET /photos/groups/{id}` returns metadata.
+                    // We need to batch request signed URLs for ALL these or lazy load.
+                    // For MVP, let's request signed URLs for ALL of them immediately.
+                    // (Not efficient for 1000s, but fine for MVP).
+                    return p;
+                });
+
+                if (photos.length > 0) {
+                    const ids = photos.map(p => p.id);
+                    const signed = await window.app.api.getSignedUrls(ids);
+                    // Map back
+                    const urlMap = {};
+                    signed.forEach(s => urlMap[s.photo_id] = s.signed_url);
+
+                    grid.innerHTML = photos.map(p => `
+                         <div class="photo-item">
+                             <input type="checkbox" class="photo-select" value="${p.id}">
+                             <img src="${urlMap[p.id]}" loading="lazy">
+                         </div>
+                     `).join('');
+                } else {
+                    grid.innerHTML = '<p>No photos yet.</p>';
+                }
+
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function uploadPhotos() {
+            const input = document.getElementById('photoInput');
+            if (input.files.length === 0) return;
+
+            const progress = document.getElementById('uploadProgress');
+            progress.classList.remove('hidden');
+            progress.textContent = `Uploading ${input.files.length} files...`;
+
+            let success = 0;
+            for (let file of input.files) {
+                try {
+                    await window.app.api.uploadPhoto(currentGroupId, file);
+                    success++;
+                } catch (err) {
+                    console.error('Upload failed for file', file.name, err);
+                }
+            }
+
+            progress.textContent = `Uploaded ${success}/${input.files.length}`;
+            setTimeout(() => progress.classList.add('hidden'), 2000);
+
+            input.value = '';
+            loadPhotos(currentGroupId);
+        }
+
+        async function downloadSelected() {
+            // Find selected
+            const checked = document.querySelectorAll('.photo-select:checked');
+            if (checked.length === 0) return alert('Select photos first');
+
+            const ids = Array.from(checked).map(c => c.value);
+            try {
+                const urls = await window.app.api.getSignedUrls(ids);
+                // Trigger downloads
+                // naive: open in new tab? or force download?
+                // Browser blocks multiple tabs.
+                // Better: Show list of links or create a ZIP (backend zip not avail).
+                // Let's just open them sequentially with delay or log
+
+                urls.forEach(u => {
+                    const a = document.createElement('a');
+                    a.href = u.signed_url;
+                    a.download = ''; // Hint
+                    a.target = '_blank';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                });
+
+            } catch (err) {
+                alert('Error getting links');
+            }
+        }
+
+        // Start
+        loadGroups();
+    </script>
+</body>
+
+</html>
