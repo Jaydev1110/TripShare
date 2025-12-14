@@ -25,7 +25,7 @@ const api = {
         const res = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ username: email, password: password })
+            body: new URLSearchParams({ email: email, password: password })
         });
         if (!res.ok) throw await res.json();
         return res.json();
@@ -142,7 +142,7 @@ window.app = {
             localStorage.setItem('user', JSON.stringify(data.user));
             window.location.href = 'dashboard.html';
         } catch (err) {
-            showToast(err.detail || 'Login failed', 'error');
+            showToast(err?.detail || err?.message || "Login failed", 'error');
         }
     },
     logout: () => {
