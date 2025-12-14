@@ -9,7 +9,7 @@ let currentGroup = null;
 const headers = () => {
     return {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${currentUser?.id}` // Using ID as token based on our mock auth
+        'Authorization': `Bearer ${currentToken}`
     };
 };
 
@@ -106,7 +106,7 @@ const api = {
 
         const res = await fetch(`${API_URL}/photos/upload`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${currentUser?.id}` }, // No Content-Type for FormData
+            headers: { 'Authorization': `Bearer ${currentToken}` }, // No Content-Type for FormData
             body: formData
         });
         if (!res.ok) throw await res.json();
