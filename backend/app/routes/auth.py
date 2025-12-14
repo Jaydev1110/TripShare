@@ -49,26 +49,40 @@ async def signup(user_data: UserSignup):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from fastapi.security import OAuth2PasswordRequestForm
+
 @router.post("/login", response_model=TokenResponse)
-async def login(credentials: UserLogin):
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     try:
         response = supabase.auth.sign_in_with_password({
-            "email": credentials.email,
-            "password": credentials.password
+            "email": form_data.username,
+            "password": form_data.password
         })
         
-        if not response.session:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not response.session or not response.user:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
             
         return TokenResponse(
             access_token=response.session.access_token,
             refresh_token=response.session.refresh_token,
-            user_id=response.user.id
+            user_id=response.user.id,
+            user={
+                "id": response.user.id,
+                "email": response.user.email,
+                "metadata": response.user.user_metadata or {}
+            }
         )
     except AuthApiError as e:
+        # Supabase specific auth errors
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        # Re-raise explicit HTTP exceptions
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Catch unexpected errors to prevent 500, but log it
+        print(f"Login Error: {e}") 
+        # Don't return 500 for auth failures masked as generic exceptions
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 async def get_current_user_dep(credentials: HTTPAuthorizationCredentials = Depends(security)) -> UserResponse:
     token = credentials.credentials

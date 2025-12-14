@@ -15,6 +15,7 @@ class TokenResponse(BaseModel):
     refresh_token: str
     user_id: str
     token_type: str = "bearer"
+    user: Optional[Dict[str, Any]] = None
 
 class UserResponse(BaseModel):
     id: str
