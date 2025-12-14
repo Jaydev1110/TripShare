@@ -25,7 +25,7 @@ const api = {
         const res = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ email: email, password: password })
+            body: new URLSearchParams({ username: email, password: password })
         });
         if (!res.ok) throw await res.json();
         return res.json();
